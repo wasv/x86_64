@@ -3,7 +3,7 @@
 pub use self::mapped_page_table::{MappedPageTable, PhysToVirt};
 #[cfg(target_pointer_width = "64")]
 pub use self::offset_page_table::OffsetPageTable;
-#[cfg(feature = "instructions")]
+#[cfg(all(target_arch = "x86_64", feature = "instructions"))]
 pub use self::recursive_page_table::RecursivePageTable;
 
 use crate::structures::paging::{
@@ -57,21 +57,21 @@ pub enum TranslateResult {
         /// The mapped frame.
         frame: PhysFrame<Size4KiB>,
         /// The offset whithin the mapped frame.
-        offset: u64,
+        offset: usize,
     },
     /// The page is mapped to a physical frame of size 2MiB.
     Frame2MiB {
         /// The mapped frame.
         frame: PhysFrame<Size2MiB>,
         /// The offset whithin the mapped frame.
-        offset: u64,
+        offset: usize,
     },
     /// The page is mapped to a physical frame of size 2MiB.
     Frame1GiB {
         /// The mapped frame.
         frame: PhysFrame<Size1GiB>,
         /// The offset whithin the mapped frame.
-        offset: u64,
+        offset: usize,
     },
     /// The given page is not mapped to a physical frame.
     PageNotMapped,
@@ -340,7 +340,7 @@ pub trait Mapper<S: PageSize> {
         S: PageSize,
         Self: Mapper<S>,
     {
-        let page = Page::containing_address(VirtAddr::new(frame.start_address().as_u64()));
+        let page = Page::containing_address(VirtAddr::new(frame.start_address().as_usize()));
         self.map_to(page, frame, flags, frame_allocator)
     }
 }

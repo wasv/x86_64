@@ -22,7 +22,7 @@ pub enum FrameError {
 #[derive(Clone)]
 #[repr(transparent)]
 pub struct PageTableEntry {
-    entry: u64,
+    entry: usize,
 }
 
 impl PageTableEntry {
@@ -52,8 +52,16 @@ impl PageTableEntry {
 
     /// Returns the physical address mapped by this entry, might be zero.
     #[inline]
+    #[cfg(target_arch = "x86_64")]
     pub fn addr(&self) -> PhysAddr {
         PhysAddr::new(self.entry & 0x000fffff_fffff000)
+    }
+
+    /// Returns the physical address mapped by this entry, might be zero.
+    #[inline]
+    #[cfg(target_arch = "x86")]
+    pub fn addr(&self) -> PhysAddr {
+        PhysAddr::new(self.entry & 0xfffff000)
     }
 
     /// Returns the physical frame mapped by this entry.
@@ -78,7 +86,7 @@ impl PageTableEntry {
     #[inline]
     pub fn set_addr(&mut self, addr: PhysAddr, flags: PageTableFlags) {
         assert!(addr.is_aligned(Size4KiB::SIZE));
-        self.entry = (addr.as_u64()) | flags.bits();
+        self.entry = (addr.as_usize()) | flags.bits();
     }
 
     /// Map the entry to the specified physical frame with the specified flags.
@@ -91,7 +99,7 @@ impl PageTableEntry {
     /// Sets the flags of this entry.
     #[inline]
     pub fn set_flags(&mut self, flags: PageTableFlags) {
-        self.entry = self.addr().as_u64() | flags.bits();
+        self.entry = self.addr().as_usize() | flags.bits();
     }
 }
 
@@ -104,9 +112,10 @@ impl fmt::Debug for PageTableEntry {
     }
 }
 
+#[cfg(target_arch = "x86_64")]
 bitflags! {
     /// Possible flags for a page table entry.
-    pub struct PageTableFlags: u64 {
+    pub struct PageTableFlags: usize {
         /// Specifies whether the mapped frame or page table is loaded in memory.
         const PRESENT =         1;
         /// Controls whether writes to the mapped frames are allowed.
@@ -165,6 +174,44 @@ bitflags! {
         /// Can be only used when the no-execute page protection feature is enabled in the EFER
         /// register.
         const NO_EXECUTE =      1 << 63;
+    }
+}
+
+#[cfg(target_arch = "x86")]
+bitflags! {
+    /// Possible flags for a page table entry.
+    pub struct PageTableFlags: usize {
+        /// Specifies whether the mapped frame or page table is loaded in memory.
+        const PRESENT =         1;
+        /// Controls whether writes to the mapped frames are allowed.
+        ///
+        /// If this bit is unset in a level 1 page table entry, the mapped frame is read-only.
+        /// If this bit is unset in a higher level page table entry the complete range of mapped
+        /// pages is read-only.
+        const WRITABLE =        1 << 1;
+        /// Controls whether accesses from userspace (i.e. ring 3) are permitted.
+        const USER_ACCESSIBLE = 1 << 2;
+        /// If this bit is set, a “write-through” policy is used for the cache, else a “write-back”
+        /// policy is used.
+        const WRITE_THROUGH =   1 << 3;
+        /// Disables caching for the pointed entry is cacheable.
+        const NO_CACHE =        1 << 4;
+        /// Set by the CPU when the mapped frame or page table is accessed.
+        const ACCESSED =        1 << 5;
+        /// Set by the CPU on a write to the mapped frame.
+        const DIRTY =           1 << 6;
+        /// Specifies that the entry maps a huge frame instead of a page table. Only allowed in
+        /// P2 or P3 tables.
+        const HUGE_PAGE =       1 << 7;
+        /// Indicates that the mapping is present in all address spaces, so it isn't flushed from
+        /// the TLB on an address space switch.
+        const GLOBAL =          1 << 8;
+        /// Available to the OS, can be used to store additional data, e.g. custom flags.
+        const BIT_9 =           1 << 9;
+        /// Available to the OS, can be used to store additional data, e.g. custom flags.
+        const BIT_10 =          1 << 10;
+        /// Available to the OS, can be used to store additional data, e.g. custom flags.
+        const BIT_11 =          1 << 11;
     }
 }
 

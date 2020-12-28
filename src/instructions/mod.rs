@@ -56,8 +56,8 @@ pub fn bochs_breakpoint() {
 /// instructions to execute.
 #[cfg(feature = "inline_asm")]
 #[inline(always)]
-pub fn read_rip() -> u64 {
-    let rip: u64;
+pub fn read_rip() -> usize {
+    let rip: usize;
     unsafe {
         asm!(
             "lea {}, [rip]", out(reg) rip, options(nostack, nomem)

@@ -24,7 +24,7 @@ pub unsafe fn set_cs(sel: SegmentSelector) {
             "push {tmp}",
             "retfq",
             "1:",
-            sel = in(reg) u64::from(sel.0),
+            sel = in(reg) usize::from(sel.0),
             tmp = lateout(reg) _,
         );
     }
@@ -32,7 +32,7 @@ pub unsafe fn set_cs(sel: SegmentSelector) {
     #[cfg(not(feature = "inline_asm"))]
     #[inline(always)]
     unsafe fn inner(sel: SegmentSelector) {
-        crate::asm::x86_64_asm_set_cs(u64::from(sel.0))
+        crate::asm::x86_64_asm_set_cs(usize::from(sel.0))
     }
 
     inner(sel)
@@ -155,16 +155,16 @@ pub fn cs() -> SegmentSelector {
 /// effects, as the FS segment base address is often used for thread
 /// local storage.
 #[inline]
-pub unsafe fn wrfsbase(val: u64) {
+pub unsafe fn wrfsbase(val: usize) {
     #[cfg(feature = "inline_asm")]
     #[inline(always)]
-    unsafe fn inner(val: u64) {
+    unsafe fn inner(val: usize) {
         asm!("wrfsbase {}", in(reg) val, options(nomem, nostack));
     }
 
     #[cfg(not(feature = "inline_asm"))]
     #[inline(always)]
-    unsafe fn inner(val: u64) {
+    unsafe fn inner(val: usize) {
         crate::asm::x86_64_asm_wrfsbase(val)
     }
 
@@ -177,18 +177,18 @@ pub unsafe fn wrfsbase(val: u64) {
 ///
 /// If `CR4.FSGSBASE` is not set, this instruction will throw an `#UD`.
 #[inline]
-pub unsafe fn rdfsbase() -> u64 {
+pub unsafe fn rdfsbase() -> usize {
     #[cfg(feature = "inline_asm")]
     #[inline(always)]
-    unsafe fn inner() -> u64 {
-        let val: u64;
+    unsafe fn inner() -> usize {
+        let val: usize;
         asm!("rdfsbase {}", out(reg) val, options(nomem, nostack));
         val
     }
 
     #[cfg(not(feature = "inline_asm"))]
     #[inline(always)]
-    unsafe fn inner() -> u64 {
+    unsafe fn inner() -> usize {
         crate::asm::x86_64_asm_rdfsbase()
     }
 
@@ -204,16 +204,16 @@ pub unsafe fn rdfsbase() -> u64 {
 /// The caller must ensure that this write operation has no unsafe side
 /// effects, as the GS segment base address might be in use.
 #[inline]
-pub unsafe fn wrgsbase(val: u64) {
+pub unsafe fn wrgsbase(val: usize) {
     #[cfg(feature = "inline_asm")]
     #[inline(always)]
-    unsafe fn inner(val: u64) {
+    unsafe fn inner(val: usize) {
         asm!("wrgsbase {}", in(reg) val, options(nomem, nostack))
     }
 
     #[cfg(not(feature = "inline_asm"))]
     #[inline(always)]
-    unsafe fn inner(val: u64) {
+    unsafe fn inner(val: usize) {
         crate::asm::x86_64_asm_wrgsbase(val)
     }
 
@@ -226,18 +226,18 @@ pub unsafe fn wrgsbase(val: u64) {
 ///
 /// If `CR4.FSGSBASE` is not set, this instruction will throw an `#UD`.
 #[inline]
-pub unsafe fn rdgsbase() -> u64 {
+pub unsafe fn rdgsbase() -> usize {
     #[cfg(feature = "inline_asm")]
     #[inline(always)]
-    unsafe fn inner() -> u64 {
-        let val: u64;
+    unsafe fn inner() -> usize {
+        let val: usize;
         asm!("rdgsbase {}", out(reg) val, options(nomem, nostack));
         val
     }
 
     #[cfg(not(feature = "inline_asm"))]
     #[inline(always)]
-    unsafe fn inner() -> u64 {
+    unsafe fn inner() -> usize {
         crate::asm::x86_64_asm_rdgsbase()
     }
 

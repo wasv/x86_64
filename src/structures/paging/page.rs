@@ -9,7 +9,7 @@ use core::ops::{Add, AddAssign, Sub, SubAssign};
 /// Trait for abstracting over the three possible page sizes on x86_64, 4KiB, 2MiB, 1GiB.
 pub trait PageSize: Copy + Eq + PartialOrd + Ord {
     /// The page size in bytes.
-    const SIZE: u64;
+    const SIZE: usize;
 
     /// A string representation of the page size for debug output.
     const SIZE_AS_DEBUG_STR: &'static str;
@@ -33,21 +33,21 @@ pub enum Size2MiB {}
 pub enum Size1GiB {}
 
 impl PageSize for Size4KiB {
-    const SIZE: u64 = 4096;
+    const SIZE: usize = 4096;
     const SIZE_AS_DEBUG_STR: &'static str = "4KiB";
 }
 
 impl NotGiantPageSize for Size4KiB {}
 
 impl PageSize for Size2MiB {
-    const SIZE: u64 = Size4KiB::SIZE * 512;
+    const SIZE: usize = Size4KiB::SIZE * 512;
     const SIZE_AS_DEBUG_STR: &'static str = "2MiB";
 }
 
 impl NotGiantPageSize for Size2MiB {}
 
 impl PageSize for Size1GiB {
-    const SIZE: u64 = Size2MiB::SIZE * 512;
+    const SIZE: usize = Size2MiB::SIZE * 512;
     const SIZE_AS_DEBUG_STR: &'static str = "1GiB";
 }
 
@@ -61,7 +61,7 @@ pub struct Page<S: PageSize = Size4KiB> {
 
 impl<S: PageSize> Page<S> {
     /// The page size in bytes.
-    pub const SIZE: u64 = S::SIZE;
+    pub const SIZE: usize = S::SIZE;
 
     /// Returns the page that starts at the given virtual address.
     ///
@@ -109,7 +109,7 @@ impl<S: PageSize> Page<S> {
     const_fn! {
         /// Returns the size the page (4KB, 2MB or 1GB).
         #[inline]
-        pub fn size(self) -> u64 {
+        pub fn size(self) -> usize {
             S::SIZE
         }
     }
@@ -167,8 +167,8 @@ impl Page<Size1GiB> {
         use bit_field::BitField;
 
         let mut addr = 0;
-        addr.set_bits(39..48, u64::from(p4_index));
-        addr.set_bits(30..39, u64::from(p3_index));
+        addr.set_bits(39..48, usize::from(p4_index));
+        addr.set_bits(30..39, usize::from(p3_index));
         Page::containing_address(VirtAddr::new(addr))
     }
 }
@@ -184,9 +184,9 @@ impl Page<Size2MiB> {
         use bit_field::BitField;
 
         let mut addr = 0;
-        addr.set_bits(39..48, u64::from(p4_index));
-        addr.set_bits(30..39, u64::from(p3_index));
-        addr.set_bits(21..30, u64::from(p2_index));
+        addr.set_bits(39..48, usize::from(p4_index));
+        addr.set_bits(30..39, usize::from(p3_index));
+        addr.set_bits(21..30, usize::from(p2_index));
         Page::containing_address(VirtAddr::new(addr))
     }
 }
@@ -203,10 +203,10 @@ impl Page<Size4KiB> {
         use bit_field::BitField;
 
         let mut addr = 0;
-        addr.set_bits(39..48, u64::from(p4_index));
-        addr.set_bits(30..39, u64::from(p3_index));
-        addr.set_bits(21..30, u64::from(p2_index));
-        addr.set_bits(12..21, u64::from(p1_index));
+        addr.set_bits(39..48, usize::from(p4_index));
+        addr.set_bits(30..39, usize::from(p3_index));
+        addr.set_bits(21..30, usize::from(p2_index));
+        addr.set_bits(12..21, usize::from(p1_index));
         Page::containing_address(VirtAddr::new(addr))
     }
 
@@ -224,43 +224,43 @@ impl<S: PageSize> fmt::Debug for Page<S> {
         f.write_fmt(format_args!(
             "Page[{}]({:#x})",
             S::SIZE_AS_DEBUG_STR,
-            self.start_address().as_u64()
+            self.start_address().as_usize()
         ))
     }
 }
 
-impl<S: PageSize> Add<u64> for Page<S> {
+impl<S: PageSize> Add<usize> for Page<S> {
     type Output = Self;
     #[inline]
-    fn add(self, rhs: u64) -> Self::Output {
+    fn add(self, rhs: usize) -> Self::Output {
         Page::containing_address(self.start_address() + rhs * S::SIZE)
     }
 }
 
-impl<S: PageSize> AddAssign<u64> for Page<S> {
+impl<S: PageSize> AddAssign<usize> for Page<S> {
     #[inline]
-    fn add_assign(&mut self, rhs: u64) {
+    fn add_assign(&mut self, rhs: usize) {
         *self = *self + rhs;
     }
 }
 
-impl<S: PageSize> Sub<u64> for Page<S> {
+impl<S: PageSize> Sub<usize> for Page<S> {
     type Output = Self;
     #[inline]
-    fn sub(self, rhs: u64) -> Self::Output {
+    fn sub(self, rhs: usize) -> Self::Output {
         Page::containing_address(self.start_address() - rhs * S::SIZE)
     }
 }
 
-impl<S: PageSize> SubAssign<u64> for Page<S> {
+impl<S: PageSize> SubAssign<usize> for Page<S> {
     #[inline]
-    fn sub_assign(&mut self, rhs: u64) {
+    fn sub_assign(&mut self, rhs: usize) {
         *self = *self - rhs;
     }
 }
 
 impl<S: PageSize> Sub<Self> for Page<S> {
-    type Output = u64;
+    type Output = usize;
     #[inline]
     fn sub(self, rhs: Self) -> Self::Output {
         (self.start_address - rhs.start_address) / S::SIZE

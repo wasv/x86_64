@@ -1,5 +1,10 @@
 //! Support for build-in RNGs
 
+#[cfg(target_arch = "x86")]
+use core::arch::x86 as arch;
+#[cfg(target_arch = "x86_64")]
+use core::arch::x86_64 as arch;
+
 #[derive(Copy, Clone, Debug)]
 /// Used to obtain random numbers using x86_64's RDRAND opcode
 pub struct RdRand(());
@@ -10,7 +15,7 @@ impl RdRand {
     pub fn new() -> Option<Self> {
         // RDRAND support indicated by CPUID page 01h, ecx bit 30
         // https://en.wikipedia.org/wiki/RdRand#Overview
-        let cpuid = unsafe { core::arch::x86_64::__cpuid(0x1) };
+        let cpuid = unsafe { arch::__cpuid(0x1) };
         if cpuid.ecx & (1 << 30) != 0 {
             Some(RdRand(()))
         } else {
@@ -21,10 +26,11 @@ impl RdRand {
     /// Uniformly sampled u64.
     /// May fail in rare circumstances or heavy load.
     #[inline]
+    #[cfg(target_arch = "x86_64")]
     pub fn get_u64(self) -> Option<u64> {
         let mut res: u64 = 0;
         unsafe {
-            match core::arch::x86_64::_rdrand64_step(&mut res) {
+            match arch::_rdrand64_step(&mut res) {
                 1 => Some(res),
                 x => {
                     debug_assert_eq!(x, 0, "rdrand64 returned non-binary value");
@@ -39,7 +45,7 @@ impl RdRand {
     pub fn get_u32(self) -> Option<u32> {
         let mut res: u32 = 0;
         unsafe {
-            match core::arch::x86_64::_rdrand32_step(&mut res) {
+            match arch::_rdrand32_step(&mut res) {
                 1 => Some(res),
                 x => {
                     debug_assert_eq!(x, 0, "rdrand32 returned non-binary value");
@@ -54,7 +60,7 @@ impl RdRand {
     pub fn get_u16(self) -> Option<u16> {
         let mut res: u16 = 0;
         unsafe {
-            match core::arch::x86_64::_rdrand16_step(&mut res) {
+            match arch::_rdrand16_step(&mut res) {
                 1 => Some(res),
                 x => {
                     debug_assert_eq!(x, 0, "rdrand16 returned non-binary value");

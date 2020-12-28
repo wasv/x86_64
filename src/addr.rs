@@ -18,29 +18,29 @@ use bit_field::BitField;
 /// are called “canonical”. This type guarantees that it always represents a canonical address.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct VirtAddr(u64);
+pub struct VirtAddr(usize);
 
 /// A 64-bit physical memory address.
 ///
 /// This is a wrapper type around an `u64`, so it is always 8 bytes, even when compiled
 /// on non 64-bit systems. The
 /// [`TryFrom`](https://doc.rust-lang.org/std/convert/trait.TryFrom.html) trait can be used for performing conversions
-/// between `u64` and `usize`.
+/// between `usize` and `usize`.
 ///
 /// On `x86_64`, only the 52 lower bits of a physical address can be used. The top 12 bits need
 /// to be zero. This type guarantees that it always represents a valid physical address.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct PhysAddr(u64);
+pub struct PhysAddr(usize);
 
-/// A passed `u64` was not a valid virtual address.
+/// A passed `usize` was not a valid virtual address.
 ///
 /// This means that bits 48 to 64 are not
 /// a valid sign extension and are not null either. So automatic sign extension would have
 /// overwritten possibly meaningful bits. This likely indicates a bug, for example an invalid
 /// address calculation.
 #[derive(Debug)]
-pub struct VirtAddrNotValid(u64);
+pub struct VirtAddrNotValid(usize);
 
 impl VirtAddr {
     /// Creates a new canonical virtual address.
@@ -51,7 +51,7 @@ impl VirtAddr {
     ///
     /// This function panics if the bits in the range 48 to 64 contain data (i.e. are not null and no sign extension).
     #[inline]
-    pub fn new(addr: u64) -> VirtAddr {
+    pub fn new(addr: usize) -> VirtAddr {
         Self::try_new(addr).expect(
             "address passed to VirtAddr::new must not contain any data \
              in bits 48 to 64",
@@ -65,12 +65,22 @@ impl VirtAddr {
     /// either a correct sign extension (i.e. copies of bit 47) or all null. Else, an error
     /// is returned.
     #[inline]
-    pub fn try_new(addr: u64) -> Result<VirtAddr, VirtAddrNotValid> {
+    #[cfg(target_arch = "x86_64")]
+    pub fn try_new(addr: usize) -> Result<VirtAddr, VirtAddrNotValid> {
         match addr.get_bits(47..64) {
             0 | 0x1ffff => Ok(VirtAddr(addr)),     // address is canonical
             1 => Ok(VirtAddr::new_truncate(addr)), // address needs sign extension
             other => Err(VirtAddrNotValid(other)),
         }
+    }
+
+    /// Tries to create a new canonical virtual address.
+    ///
+    /// The function will always succeed on x86.
+    #[inline]
+    #[cfg(target_arch = "x86")]
+    pub fn try_new(addr: usize) -> Result<VirtAddr, VirtAddrNotValid> {
+        Ok(VirtAddr(addr))
     }
 
     /// Creates a new canonical virtual address, throwing out bits 48..64.
@@ -79,16 +89,26 @@ impl VirtAddr {
     /// bits 48 to 64 are overwritten. If you want to check that these bits contain no data,
     /// use `new` or `try_new`.
     #[inline]
-    pub const fn new_truncate(addr: u64) -> VirtAddr {
+    #[cfg(target_arch = "x86_64")]
+    pub const fn new_truncate(addr: usize) -> VirtAddr {
         // By doing the right shift as a signed operation (on a i64), it will
         // sign extend the value, repeating the leftmost bit.
-        VirtAddr(((addr << 16) as i64 >> 16) as u64)
+        VirtAddr(((addr << 16) as isize >> 16) as usize)
+    }
+
+    /// Tries to create a new canonical virtual address.
+    ///
+    /// The function is identical to new on x86.
+    #[inline]
+    #[cfg(target_arch = "x86")]
+    pub const fn new_truncate(addr: usize) -> VirtAddr {
+        VirtAddr(addr)
     }
 
     /// Alias for [`new_truncate`][VirtAddr::new_truncate] for backwards compatibility.
     #[inline]
     #[deprecated(note = "Use new_truncate or new_unsafe instead")]
-    pub const fn new_unchecked(addr: u64) -> VirtAddr {
+    pub const fn new_unchecked(addr: usize) -> VirtAddr {
         Self::new_truncate(addr)
     }
 
@@ -98,7 +118,7 @@ impl VirtAddr {
     ///
     /// You must make sure bits 48..64 are equal to bit 47. This is not checked.
     #[inline]
-    pub const unsafe fn new_unsafe(addr: u64) -> VirtAddr {
+    pub const unsafe fn new_unsafe(addr: usize) -> VirtAddr {
         VirtAddr(addr)
     }
 
@@ -108,9 +128,9 @@ impl VirtAddr {
         VirtAddr(0)
     }
 
-    /// Converts the address to an `u64`.
+    /// Converts the address to an `usize`.
     #[inline]
-    pub const fn as_u64(self) -> u64 {
+    pub const fn as_usize(self) -> usize {
         self.0
     }
 
@@ -122,14 +142,14 @@ impl VirtAddr {
     #[cfg(any(target_pointer_width = "32", target_pointer_width = "64"))]
     #[inline]
     pub fn from_ptr<T>(ptr: *const T) -> Self {
-        Self::new(ptr as u64)
+        Self::new(ptr as usize)
     }
 
     /// Converts the address to a raw pointer.
     #[cfg(target_pointer_width = "64")]
     #[inline]
     pub fn as_ptr<T>(self) -> *const T {
-        self.as_u64() as *const T
+        self.as_usize() as *const T
     }
 
     /// Converts the address to a mutable raw pointer.
@@ -151,7 +171,7 @@ impl VirtAddr {
     #[inline]
     pub fn align_up<U>(self, align: U) -> Self
     where
-        U: Into<u64>,
+        U: Into<usize>,
     {
         VirtAddr(align_up(self.0, align.into()))
     }
@@ -162,7 +182,7 @@ impl VirtAddr {
     #[inline]
     pub fn align_down<U>(self, align: U) -> Self
     where
-        U: Into<u64>,
+        U: Into<usize>,
     {
         VirtAddr(align_down(self.0, align.into()))
     }
@@ -171,7 +191,7 @@ impl VirtAddr {
     #[inline]
     pub fn is_aligned<U>(self, align: U) -> bool
     where
-        U: Into<u64>,
+        U: Into<usize>,
     {
         self.align_down(align) == self
     }
@@ -213,83 +233,49 @@ impl fmt::Debug for VirtAddr {
     }
 }
 
-impl Add<u64> for VirtAddr {
-    type Output = Self;
-    #[inline]
-    fn add(self, rhs: u64) -> Self::Output {
-        VirtAddr::new(self.0 + rhs)
-    }
-}
-
-impl AddAssign<u64> for VirtAddr {
-    #[inline]
-    fn add_assign(&mut self, rhs: u64) {
-        *self = *self + rhs;
-    }
-}
-
-#[cfg(target_pointer_width = "64")]
 impl Add<usize> for VirtAddr {
     type Output = Self;
     #[inline]
     fn add(self, rhs: usize) -> Self::Output {
-        self + rhs as u64
+        VirtAddr::new(self.0 + rhs)
     }
 }
 
-#[cfg(target_pointer_width = "64")]
 impl AddAssign<usize> for VirtAddr {
     #[inline]
     fn add_assign(&mut self, rhs: usize) {
-        self.add_assign(rhs as u64)
+        *self = *self + rhs;
     }
 }
 
-impl Sub<u64> for VirtAddr {
-    type Output = Self;
-    #[inline]
-    fn sub(self, rhs: u64) -> Self::Output {
-        VirtAddr::new(self.0.checked_sub(rhs).unwrap())
-    }
-}
-
-impl SubAssign<u64> for VirtAddr {
-    #[inline]
-    fn sub_assign(&mut self, rhs: u64) {
-        *self = *self - rhs;
-    }
-}
-
-#[cfg(target_pointer_width = "64")]
 impl Sub<usize> for VirtAddr {
     type Output = Self;
     #[inline]
     fn sub(self, rhs: usize) -> Self::Output {
-        self - rhs as u64
+        VirtAddr::new(self.0.checked_sub(rhs).unwrap())
     }
 }
 
-#[cfg(target_pointer_width = "64")]
 impl SubAssign<usize> for VirtAddr {
     #[inline]
     fn sub_assign(&mut self, rhs: usize) {
-        self.sub_assign(rhs as u64)
+        *self = *self - rhs;
     }
 }
 
 impl Sub<VirtAddr> for VirtAddr {
-    type Output = u64;
+    type Output = usize;
     #[inline]
     fn sub(self, rhs: VirtAddr) -> Self::Output {
-        self.as_u64().checked_sub(rhs.as_u64()).unwrap()
+        self.as_usize().checked_sub(rhs.as_usize()).unwrap()
     }
 }
 
-/// A passed `u64` was not a valid physical address.
+/// A passed `usize` was not a valid physical address.
 ///
 /// This means that bits 52 to 64 were not all null.
 #[derive(Debug)]
-pub struct PhysAddrNotValid(u64);
+pub struct PhysAddrNotValid(usize);
 
 impl PhysAddr {
     /// Creates a new physical address.
@@ -298,7 +284,7 @@ impl PhysAddr {
     ///
     /// This function panics if a bit in the range 52 to 64 is set.
     #[inline]
-    pub fn new(addr: u64) -> PhysAddr {
+    pub fn new(addr: usize) -> PhysAddr {
         assert_eq!(
             addr.get_bits(52..64),
             0,
@@ -309,8 +295,18 @@ impl PhysAddr {
 
     /// Creates a new physical address, throwing bits 52..64 away.
     #[inline]
-    pub const fn new_truncate(addr: u64) -> PhysAddr {
+    #[cfg(target_arch = "x86_64")]
+    pub const fn new_truncate(addr: usize) -> PhysAddr {
         PhysAddr(addr % (1 << 52))
+    }
+
+    /// Creates a new physical address.
+    ///
+    /// This function is identical to new on x86.
+    #[inline]
+    #[cfg(target_arch = "x86")]
+    pub const fn new_truncate(addr: usize) -> PhysAddr {
+        PhysAddr(addr)
     }
 
     /// Creates a new physical address, without any checks.
@@ -319,7 +315,7 @@ impl PhysAddr {
     ///
     /// You must make sure bits 52..64 are zero. This is not checked.
     #[inline]
-    pub const unsafe fn new_unsafe(addr: u64) -> PhysAddr {
+    pub const unsafe fn new_unsafe(addr: usize) -> PhysAddr {
         PhysAddr(addr)
     }
 
@@ -327,22 +323,31 @@ impl PhysAddr {
     ///
     /// Fails if any bits in the range 52 to 64 are set.
     #[inline]
-    pub fn try_new(addr: u64) -> Result<PhysAddr, PhysAddrNotValid> {
+    #[cfg(target_arch = "x86_64")]
+    pub fn try_new(addr: usize) -> Result<PhysAddr, PhysAddrNotValid> {
         match addr.get_bits(52..64) {
             0 => Ok(PhysAddr(addr)), // address is valid
             other => Err(PhysAddrNotValid(other)),
         }
     }
 
+    /// Tries to create a new physical address.
+    ///
+    /// Will always succeed on x86.
+    #[inline]
+    #[cfg(target_arch = "x86")]
+    pub fn try_new(addr: usize) -> Result<PhysAddr, PhysAddrNotValid> {
+        Ok(PhysAddr(addr)) // address is valid
+    }
     /// Creates a physical address that points to `0`.
     #[inline]
     pub const fn zero() -> PhysAddr {
         PhysAddr(0)
     }
 
-    /// Converts the address to an `u64`.
+    /// Converts the address to an `usize`.
     #[inline]
-    pub const fn as_u64(self) -> u64 {
+    pub const fn as_usize(self) -> usize {
         self.0
     }
 
@@ -358,7 +363,7 @@ impl PhysAddr {
     #[inline]
     pub fn align_up<U>(self, align: U) -> Self
     where
-        U: Into<u64>,
+        U: Into<usize>,
     {
         PhysAddr(align_up(self.0, align.into()))
     }
@@ -369,7 +374,7 @@ impl PhysAddr {
     #[inline]
     pub fn align_down<U>(self, align: U) -> Self
     where
-        U: Into<u64>,
+        U: Into<usize>,
     {
         PhysAddr(align_down(self.0, align.into()))
     }
@@ -378,7 +383,7 @@ impl PhysAddr {
     #[inline]
     pub fn is_aligned<U>(self, align: U) -> bool
     where
-        U: Into<u64>,
+        U: Into<usize>,
     {
         self.align_down(align) == self
     }
@@ -418,75 +423,41 @@ impl fmt::UpperHex for PhysAddr {
     }
 }
 
-impl Add<u64> for PhysAddr {
-    type Output = Self;
-    #[inline]
-    fn add(self, rhs: u64) -> Self::Output {
-        PhysAddr::new(self.0 + rhs)
-    }
-}
-
-impl AddAssign<u64> for PhysAddr {
-    #[inline]
-    fn add_assign(&mut self, rhs: u64) {
-        *self = *self + rhs;
-    }
-}
-
-#[cfg(target_pointer_width = "64")]
 impl Add<usize> for PhysAddr {
     type Output = Self;
     #[inline]
     fn add(self, rhs: usize) -> Self::Output {
-        self + rhs as u64
+        PhysAddr::new(self.0 + rhs)
     }
 }
 
-#[cfg(target_pointer_width = "64")]
 impl AddAssign<usize> for PhysAddr {
     #[inline]
     fn add_assign(&mut self, rhs: usize) {
-        self.add_assign(rhs as u64)
+        *self = *self + rhs;
     }
 }
 
-impl Sub<u64> for PhysAddr {
-    type Output = Self;
-    #[inline]
-    fn sub(self, rhs: u64) -> Self::Output {
-        PhysAddr::new(self.0.checked_sub(rhs).unwrap())
-    }
-}
-
-impl SubAssign<u64> for PhysAddr {
-    #[inline]
-    fn sub_assign(&mut self, rhs: u64) {
-        *self = *self - rhs;
-    }
-}
-
-#[cfg(target_pointer_width = "64")]
 impl Sub<usize> for PhysAddr {
     type Output = Self;
     #[inline]
     fn sub(self, rhs: usize) -> Self::Output {
-        self - rhs as u64
+        PhysAddr::new(self.0.checked_sub(rhs).unwrap())
     }
 }
 
-#[cfg(target_pointer_width = "64")]
 impl SubAssign<usize> for PhysAddr {
     #[inline]
     fn sub_assign(&mut self, rhs: usize) {
-        self.sub_assign(rhs as u64)
+        *self = *self - rhs;
     }
 }
 
 impl Sub<PhysAddr> for PhysAddr {
-    type Output = u64;
+    type Output = usize;
     #[inline]
     fn sub(self, rhs: PhysAddr) -> Self::Output {
-        self.as_u64().checked_sub(rhs.as_u64()).unwrap()
+        self.as_usize().checked_sub(rhs.as_usize()).unwrap()
     }
 }
 
@@ -495,7 +466,7 @@ impl Sub<PhysAddr> for PhysAddr {
 /// Returns the greatest x with alignment `align` so that x <= addr. The alignment must be
 ///  a power of 2.
 #[inline]
-pub fn align_down(addr: u64, align: u64) -> u64 {
+pub fn align_down(addr: usize, align: usize) -> usize {
     assert!(align.is_power_of_two(), "`align` must be a power of two");
     addr & !(align - 1)
 }
@@ -505,7 +476,7 @@ pub fn align_down(addr: u64, align: u64) -> u64 {
 /// Returns the smallest x with alignment `align` so that x >= addr. The alignment must be
 /// a power of 2.
 #[inline]
-pub fn align_up(addr: u64, align: u64) -> u64 {
+pub fn align_up(addr: usize, align: usize) -> usize {
     assert!(align.is_power_of_two(), "`align` must be a power of two");
     let align_mask = align - 1;
     if addr & align_mask == 0 {

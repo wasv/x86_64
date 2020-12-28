@@ -11,7 +11,7 @@ pub use self::mapper::MappedPageTable;
 #[cfg(target_pointer_width = "64")]
 #[doc(no_inline)]
 pub use self::mapper::OffsetPageTable;
-#[cfg(feature = "instructions")]
+#[cfg(all(target_arch = "x86_64", feature = "instructions"))]
 #[doc(no_inline)]
 pub use self::mapper::RecursivePageTable;
 pub use self::mapper::{Mapper, MapperAllSizes};

@@ -1,4 +1,5 @@
 //! Access the page tables through a recursively mapped level 4 table.
+#![cfg(target_arch = "x86_64")]
 
 use super::*;
 use crate::registers::control::Cr3;
@@ -47,7 +48,7 @@ impl<'a> RecursivePageTable<'a> {
     /// Otherwise `Err(())` is returned.
     #[inline]
     pub fn new(table: &'a mut PageTable) -> Result<Self, ()> {
-        let page = Page::containing_address(VirtAddr::new(table as *const _ as u64));
+        let page = Page::containing_address(VirtAddr::new(table as *const _ as usize));
         let recursive_index = page.p4_index();
 
         if page.p3_index() != recursive_index
@@ -777,7 +778,7 @@ impl<'a> MapperAllSizes for RecursivePageTable<'a> {
         }
         if p3_entry.flags().contains(PageTableFlags::HUGE_PAGE) {
             let frame = PhysFrame::containing_address(p3[addr.p3_index()].addr());
-            let offset = addr.as_u64() & 0o_777_777_7777;
+            let offset = addr.as_usize() & 0o_777_777_7777;
             return TranslateResult::Frame1GiB { frame, offset };
         }
 
@@ -788,7 +789,7 @@ impl<'a> MapperAllSizes for RecursivePageTable<'a> {
         }
         if p2_entry.flags().contains(PageTableFlags::HUGE_PAGE) {
             let frame = PhysFrame::containing_address(p2[addr.p2_index()].addr());
-            let offset = addr.as_u64() & 0o_777_7777;
+            let offset = addr.as_usize() & 0o_777_7777;
             return TranslateResult::Frame2MiB { frame, offset };
         }
 
@@ -805,7 +806,7 @@ impl<'a> MapperAllSizes for RecursivePageTable<'a> {
             Ok(frame) => frame,
             Err(()) => return TranslateResult::InvalidFrameAddress(p1_entry.addr()),
         };
-        let offset = u64::from(addr.page_offset());
+        let offset = usize::from(addr.page_offset());
         TranslateResult::Frame4KiB { frame, offset }
     }
 }

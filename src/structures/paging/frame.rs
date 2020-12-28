@@ -61,7 +61,7 @@ impl<S: PageSize> PhysFrame<S> {
     const_fn! {
         /// Returns the size the frame (4KB, 2MB or 1GB).
         #[inline]
-        pub fn size(self) -> u64 {
+        pub fn size(self) -> usize {
             S::SIZE
         }
     }
@@ -88,43 +88,43 @@ impl<S: PageSize> fmt::Debug for PhysFrame<S> {
         f.write_fmt(format_args!(
             "PhysFrame[{}]({:#x})",
             S::SIZE_AS_DEBUG_STR,
-            self.start_address().as_u64()
+            self.start_address().as_usize()
         ))
     }
 }
 
-impl<S: PageSize> Add<u64> for PhysFrame<S> {
+impl<S: PageSize> Add<usize> for PhysFrame<S> {
     type Output = Self;
     #[inline]
-    fn add(self, rhs: u64) -> Self::Output {
+    fn add(self, rhs: usize) -> Self::Output {
         PhysFrame::containing_address(self.start_address() + rhs * S::SIZE)
     }
 }
 
-impl<S: PageSize> AddAssign<u64> for PhysFrame<S> {
+impl<S: PageSize> AddAssign<usize> for PhysFrame<S> {
     #[inline]
-    fn add_assign(&mut self, rhs: u64) {
+    fn add_assign(&mut self, rhs: usize) {
         *self = *self + rhs;
     }
 }
 
-impl<S: PageSize> Sub<u64> for PhysFrame<S> {
+impl<S: PageSize> Sub<usize> for PhysFrame<S> {
     type Output = Self;
     #[inline]
-    fn sub(self, rhs: u64) -> Self::Output {
+    fn sub(self, rhs: usize) -> Self::Output {
         PhysFrame::containing_address(self.start_address() - rhs * S::SIZE)
     }
 }
 
-impl<S: PageSize> SubAssign<u64> for PhysFrame<S> {
+impl<S: PageSize> SubAssign<usize> for PhysFrame<S> {
     #[inline]
-    fn sub_assign(&mut self, rhs: u64) {
+    fn sub_assign(&mut self, rhs: usize) {
         *self = *self - rhs;
     }
 }
 
 impl<S: PageSize> Sub<PhysFrame<S>> for PhysFrame<S> {
-    type Output = u64;
+    type Output = usize;
     #[inline]
     fn sub(self, rhs: PhysFrame<S>) -> Self::Output {
         (self.start_address - rhs.start_address) / S::SIZE

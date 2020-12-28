@@ -51,7 +51,7 @@ struct PhysOffset {
 impl PhysToVirt for PhysOffset {
     #[inline]
     fn phys_to_virt(&self, frame: PhysFrame) -> *mut PageTable {
-        let phys = frame.start_address().as_u64();
+        let phys = frame.start_address().as_usize();
         let virt = self.offset + phys;
         virt.as_mut_ptr()
     }

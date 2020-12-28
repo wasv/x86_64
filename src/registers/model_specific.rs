@@ -79,7 +79,7 @@ impl SFMask {
 
 bitflags! {
     /// Flags of the Extended Feature Enable Register.
-    pub struct EferFlags: u64 {
+    pub struct EferFlags: usize {
         /// Enables the `syscall` and `sysret` instructions.
         const SYSTEM_CALL_EXTENSIONS = 1;
         /// Activates long mode, requires activating paging.
@@ -117,12 +117,18 @@ mod x86_64 {
         /// The caller must ensure that this read operation has no unsafe side
         /// effects.
         #[inline]
-        pub unsafe fn read(&self) -> u64 {
-            #[cfg(feature = "inline_asm")]
+        pub unsafe fn read(&self) -> usize {
+            #[cfg(all(feature = "inline_asm", target_arch="x86_64"))]
             {
                 let (high, low): (u32, u32);
                 asm!("rdmsr", out("eax") low, out("edx") high, in("ecx") self.0, options(nostack));
-                ((high as u64) << 32) | (low as u64)
+                ((high as usize) << 32) | (low as usize)
+            }
+            #[cfg(all(feature = "inline_asm", target_arch="x86"))]
+            {
+                let low: usize;
+                asm!("rdmsr", out("eax") low, in("ecx") self.0, options(nostack));
+                low
             }
 
             #[cfg(not(feature = "inline_asm"))]
@@ -136,12 +142,16 @@ mod x86_64 {
         /// The caller must ensure that this write operation has no unsafe side
         /// effects.
         #[inline]
-        pub unsafe fn write(&mut self, value: u64) {
-            #[cfg(feature = "inline_asm")]
+        pub unsafe fn write(&mut self, value: usize) {
+            #[cfg(all(feature = "inline_asm", target_arch="x86_64"))]
             {
                 let low = value as u32;
                 let high = (value >> 32) as u32;
                 asm!("wrmsr", in("ecx") self.0, in("eax") low, in("edx") high, options(nostack))
+            }
+            #[cfg(all(feature = "inline_asm", target_arch="x86"))]
+            {
+                asm!("wrmsr", in("ecx") self.0, in("eax") value, options(nostack));
             }
 
             #[cfg(not(feature = "inline_asm"))]
@@ -158,7 +168,7 @@ mod x86_64 {
 
         /// Read the current raw EFER flags.
         #[inline]
-        pub fn read_raw() -> u64 {
+        pub fn read_raw() -> usize {
             unsafe { Self::MSR.read() }
         }
 
@@ -188,7 +198,7 @@ mod x86_64 {
         /// Unsafe because it's possible to
         /// break memory safety with wrong flags, e.g. by disabling long mode.
         #[inline]
-        pub unsafe fn write_raw(flags: u64) {
+        pub unsafe fn write_raw(flags: usize) {
             let mut msr = Self::MSR;
             msr.write(flags);
         }
@@ -223,7 +233,7 @@ mod x86_64 {
         #[inline]
         pub fn write(address: VirtAddr) {
             let mut msr = Self::MSR;
-            unsafe { msr.write(address.as_u64()) };
+            unsafe { msr.write(address.as_usize()) };
         }
     }
 
@@ -238,7 +248,7 @@ mod x86_64 {
         #[inline]
         pub fn write(address: VirtAddr) {
             let mut msr = Self::MSR;
-            unsafe { msr.write(address.as_u64()) };
+            unsafe { msr.write(address.as_usize()) };
         }
     }
 
@@ -253,7 +263,7 @@ mod x86_64 {
         #[inline]
         pub fn write(address: VirtAddr) {
             let mut msr = Self::MSR;
-            unsafe { msr.write(address.as_u64()) };
+            unsafe { msr.write(address.as_usize()) };
         }
     }
 
@@ -317,7 +327,7 @@ mod x86_64 {
         /// wrong values for the fields.
         #[inline]
         pub unsafe fn write_raw(sysret: u16, syscall: u16) {
-            let mut msr_value = 0u64;
+            let mut msr_value = 0usize;
             msr_value.set_bits(48..64, sysret.into());
             msr_value.set_bits(32..48, syscall.into());
             let mut msr = Self::MSR;
@@ -372,7 +382,7 @@ mod x86_64 {
         #[inline]
         pub fn write(address: VirtAddr) {
             let mut msr = Self::MSR;
-            unsafe { msr.write(address.as_u64()) };
+            unsafe { msr.write(address.as_usize()) };
         }
     }
 
